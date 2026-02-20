@@ -173,6 +173,21 @@ DOCUMENT-TYPE RULES FOR THE SCRIPT:
 - For ANY type: do NOT invent statistics, experiments, or results not in the document.
 - Ask questions appropriate for that document type — never pretend an experiment exists if there was none.
 
+IN-DOCUMENT CITATION RULES (CRITICAL):
+- When the GUEST states a major factual claim (a specific finding, statistic, figure, or direct argument from the document), embed a natural citation inside the sentence.
+- Citation formats (use whichever fits the document):
+    • "(Results section, page 8)"   — when a page number is visible
+    • "(Methodology section)"        — when only the section name is clear, no page visible
+    • "(Figure 3)"  or "(Table 2)"  — for specific figures/tables
+    • "(Abstract)"                   — for claims drawn from the abstract
+- Cite ONLY sections, figures, or tables that clearly exist in the document. NEVER fabricate page numbers or section names.
+- Cite only the most important factual claims — roughly one citation per 3-4 GUEST turns. Do NOT cite every sentence.
+- If a claim cannot be traced to a specific section or figure, state it without a citation rather than inventing one.
+- NEVER invent statistics, percentages, or experimental results that are not explicitly in the document.
+- HOST never cites — only the GUEST delivers citations, naturally woven into speech.
+- Example good citation: "The authors found a 23% accuracy improvement over the baseline — that's from the Results section, page 11 — which is genuinely surprising given the dataset size."
+- Example bad citation: "(page 5)" with no section name — too vague; always pair with section name if possible.
+
 SCRIPT REQUIREMENTS:
 - 18-22 conversation turns total (alternating HOST/GUEST)
 - Each turn is 2-5 sentences, natural and flowing

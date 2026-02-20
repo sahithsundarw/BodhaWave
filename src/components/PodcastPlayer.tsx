@@ -11,7 +11,7 @@ import {
   RotateCw,
   Loader2,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type { PodcastScript, PodcastSegment } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -72,6 +72,47 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
+// Citation badge renderer
+// Wraps parentheticals containing section/figure/table/page/equation/abstract
+// in a subtle chip so in-document citations stand out in the transcript.
+// ---------------------------------------------------------------------------
+
+const CITATION_KEYWORDS = /\b(?:section|abstract|figure|table|equation|appendix|page)\b/i;
+
+function SegmentText({ text }: { text: string }) {
+  // Fast path — skip splitting when there are no citation keywords
+  if (!CITATION_KEYWORDS.test(text)) return <>{text}</>;
+
+  const nodes: ReactNode[] = [];
+  const PAREN_RE = /\(([^)]{3,80})\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = PAREN_RE.exec(text)) !== null) {
+    const inner = match[1];
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+    if (CITATION_KEYWORDS.test(inner)) {
+      nodes.push(
+        <span
+          key={match.index}
+          className="inline-flex items-center mx-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700/60 text-gray-300 border border-gray-600/50 leading-none align-middle"
+        >
+          {match[0]}
+        </span>
+      );
+    } else {
+      nodes.push(match[0]);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return <>{nodes}</>;
 }
 
 // ---------------------------------------------------------------------------
@@ -495,11 +536,20 @@ export default function PodcastPlayer({
 
   const handlePlay = useCallback(() => {
     isStoppedRef.current = false;
-    const idx = currentSegment >= 0 ? currentSegment : 0;
     if (!isFallbackRef.current) {
-      setIsPlaying(true);
-      playAudioSegment(idx);
+      const audio = audioRef.current;
+      // If audio is already loaded at a position, just resume — don't reload the src
+      // (reloading resets currentTime to 0, which is the pause-then-resume bug)
+      if (audio && audio.src && audio.paused) {
+        audio.play().catch(console.error);
+        setIsPlaying(true);
+      } else {
+        const idx = currentSegment >= 0 ? currentSegment : 0;
+        setIsPlaying(true);
+        playAudioSegment(idx);
+      }
     } else {
+      const idx = currentSegment >= 0 ? currentSegment : 0;
       speechSynthesis.cancel();
       setIsPlaying(true);
       speakSegment(idx);
@@ -793,6 +843,7 @@ export default function PodcastPlayer({
             onClick={downloadTranscript}
             className="p-2 rounded-lg glass hover:bg-white/5 transition-all flex-shrink-0"
             title="Download transcript"
+            aria-label="Download transcript"
           >
             <Download className="w-4 h-4 text-gray-400" />
           </button>
@@ -913,6 +964,7 @@ export default function PodcastPlayer({
             onClick={handleSkipBack}
             className="flex flex-col items-center gap-0.5 p-2 rounded-lg hover:bg-white/5 transition-all text-gray-400 hover:text-white"
             title="Skip back 5 seconds"
+            aria-label="Skip back 5 seconds"
           >
             <RotateCcw className="w-4 h-4" />
             <span className="text-[9px] leading-none">5s</span>
@@ -923,6 +975,7 @@ export default function PodcastPlayer({
             onClick={handleSkipBack}
             className="p-2 rounded-lg hover:bg-white/5 transition-all text-gray-400 hover:text-white"
             title="Previous segment"
+            aria-label="Previous segment"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
@@ -933,6 +986,7 @@ export default function PodcastPlayer({
           <button
             onClick={isPlaying ? handlePause : handlePlay}
             className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center hover:scale-105 transition-all shadow-lg glow-violet"
+            aria-label={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? (
               <Pause className="w-6 h-6 text-white" />
@@ -945,6 +999,8 @@ export default function PodcastPlayer({
           <button
             onClick={handleStop}
             className="p-2 rounded-lg hover:bg-white/5 transition-all text-gray-400 hover:text-white"
+            title="Stop"
+            aria-label="Stop"
           >
             <Square className="w-4 h-4" />
           </button>
@@ -954,6 +1010,7 @@ export default function PodcastPlayer({
             onClick={handleSkipForward}
             className="p-2 rounded-lg hover:bg-white/5 transition-all text-gray-400 hover:text-white"
             title="Next segment"
+            aria-label="Next segment"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 18l8.5-6L6 6v12zm8.5-6v6h2V6h-2v6z" />
@@ -964,6 +1021,7 @@ export default function PodcastPlayer({
             onClick={handleSkipForward}
             className="flex flex-col items-center gap-0.5 p-2 rounded-lg hover:bg-white/5 transition-all text-gray-400 hover:text-white"
             title="Skip forward 5 seconds"
+            aria-label="Skip forward 5 seconds"
           >
             <RotateCw className="w-4 h-4" />
             <span className="text-[9px] leading-none">5s</span>
@@ -1049,7 +1107,7 @@ export default function PodcastPlayer({
                       isActive ? "text-white" : "text-gray-400"
                     }`}
                   >
-                    {segment.text}
+                    <SegmentText text={segment.text} />
                   </p>
                 </div>
               );

@@ -13,11 +13,30 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { useState } from "react";
+import { motion } from "framer-motion";
 import type { PaperAnalysis } from "@/types";
 
 interface PaperInsightsProps {
   analysis: PaperAnalysis;
 }
+
+// ---------------------------------------------------------------------------
+// Animation variants
+// ---------------------------------------------------------------------------
+
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+};
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 function ScoreBar({ score, label, color }: { score: number; label: string; color: string }) {
   return (
@@ -27,9 +46,11 @@ function ScoreBar({ score, label, color }: { score: number; label: string; color
         <span className="text-xs font-semibold text-white">{score}/10</span>
       </div>
       <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-1000`}
-          style={{ width: `${score * 10}%` }}
+        <motion.div
+          className={`h-full rounded-full bg-gradient-to-r ${color}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${score * 10}%` }}
+          transition={{ duration: 0.9, ease: "easeOut", delay: 0.25 }}
         />
       </div>
     </div>
@@ -73,14 +94,23 @@ function DocumentTypeBadge({ type, explanation }: { type: string; explanation?: 
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
 export default function PaperInsights({ analysis }: PaperInsightsProps) {
   const [showEquations, setShowEquations] = useState(false);
   const [showRelated, setShowRelated] = useState(false);
 
   return (
-    <div className="space-y-4">
+    <motion.div
+      className="space-y-4"
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+    >
       {/* Paper header */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-white leading-tight mb-1">
@@ -117,10 +147,10 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
         <p className="text-gray-300 text-sm leading-relaxed">
           {analysis.executiveSummary}
         </p>
-      </div>
+      </motion.div>
 
       {/* Scores */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-violet-400" />
           Paper Metrics
@@ -142,10 +172,10 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
             color="from-blue-600 to-blue-400"
           />
         </div>
-      </div>
+      </motion.div>
 
       {/* Top Insights */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
           <Lightbulb className="w-4 h-4 text-yellow-400" />
           Top 5 Insights
@@ -160,28 +190,28 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
             </div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Core Problem */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
           <Target className="w-4 h-4 text-rose-400" />
           Core Problem
         </h3>
         <p className="text-sm text-gray-300 leading-relaxed">{analysis.coreProblem}</p>
-      </div>
+      </motion.div>
 
       {/* Methodology */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
           <Beaker className="w-4 h-4 text-blue-400" />
           Methodology
         </h3>
         <p className="text-sm text-gray-300 leading-relaxed">{analysis.methodology}</p>
-      </div>
+      </motion.div>
 
       {/* Key Contributions */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-violet-400" />
           Key Contributions
@@ -194,10 +224,10 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
             </div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Real-World Applications */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
           <Globe className="w-4 h-4 text-emerald-400" />
           Real-World Applications
@@ -210,10 +240,10 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
             </div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Limitations */}
-      <div className="p-5 rounded-2xl glass">
+      <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
         <h3 className="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-400" />
           Limitations & Caveats
@@ -226,11 +256,11 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
             </div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
-      {/* Key Equations - collapsible */}
+      {/* Key Equations - collapsible, hidden when empty */}
       {analysis.keyEquations && analysis.keyEquations.length > 0 && (
-        <div className="p-5 rounded-2xl glass">
+        <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
           <button
             onClick={() => setShowEquations(!showEquations)}
             className="w-full flex items-center justify-between text-sm font-semibold text-gray-300"
@@ -259,12 +289,12 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
               ))}
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
-      {/* Related Work - collapsible */}
+      {/* Related Work - collapsible, hidden when empty */}
       {analysis.relatedWork && analysis.relatedWork.length > 0 && (
-        <div className="p-5 rounded-2xl glass">
+        <motion.div variants={cardVariants} className="p-5 rounded-2xl glass">
           <button
             onClick={() => setShowRelated(!showRelated)}
             className="w-full flex items-center justify-between text-sm font-semibold text-gray-300"
@@ -289,8 +319,8 @@ export default function PaperInsights({ analysis }: PaperInsightsProps) {
               ))}
             </div>
           )}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }

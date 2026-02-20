@@ -187,6 +187,7 @@ export default function HomePage() {
       <Header
         onReset={handleReset}
         showReset={phase !== "upload"}
+        isGenerating={phase === "loading"}
       />
 
       <main className="relative z-10">

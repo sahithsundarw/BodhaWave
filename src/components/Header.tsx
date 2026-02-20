@@ -6,9 +6,10 @@ import { useState } from "react";
 interface HeaderProps {
   onReset?: () => void;
   showReset?: boolean;
+  isGenerating?: boolean;
 }
 
-export default function Header({ onReset, showReset }: HeaderProps) {
+export default function Header({ onReset, showReset, isGenerating }: HeaderProps) {
   const [imgFailed, setImgFailed] = useState(false);
 
   return (
@@ -88,8 +89,12 @@ export default function Header({ onReset, showReset }: HeaderProps) {
           )}
 
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span>AI Ready</span>
+            <div
+              className={`w-2 h-2 rounded-full animate-pulse ${
+                isGenerating ? "bg-amber-400" : "bg-green-400"
+              }`}
+            />
+            <span>{isGenerating ? "Generating…" : "AI Ready"}</span>
           </div>
         </div>
       </div>
