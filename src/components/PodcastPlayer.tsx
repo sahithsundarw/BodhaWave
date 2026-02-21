@@ -341,43 +341,24 @@ export default function PodcastPlayer({
 
   const playAudioSegment = useCallback(
     (index: number) => {
-      if (isStoppedRef.current) {
-        setIsPlaying(false);
-        setCurrentSegment(-1);
-        currentSegmentRef.current = -1;
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.src = "";
-        }
-        return;
-      }
-
-      const totalExpected = activeSegmentsRef.current.length;
-
-      // Past the last segment — natural end of playback
-      if (index >= totalExpected) {
-        setIsPlaying(false);
-        setCurrentSegment(-1);
-        currentSegmentRef.current = -1;
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.src = "";
-        }
-        return;
-      }
-
       const urls = audioUrlsRef.current;
 
-      // Segment not generated yet — wait 400ms and retry (still generating)
-      if (index >= urls.length) {
-        setTimeout(() => playAudioSegment(index), 400);
+      // End of playlist or stopped
+      if (index >= urls.length || isStoppedRef.current) {
+        setIsPlaying(false);
+        setCurrentSegment(-1);
+        currentSegmentRef.current = -1;
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        }
         return;
       }
 
       const url = urls[index];
       if (!url) {
-        // This specific segment failed — skip it
-        playAudioSegment(index + 1);
+        // Segment failed to generate — skip with tiny delay to avoid instant cascade
+        setTimeout(() => playAudioSegment(index + 1), 50);
         return;
       }
 
@@ -497,71 +478,74 @@ export default function PodcastPlayer({
 
       if (cancelled || generationIdRef.current !== genId) return;
 
-      // 2. Generate ElevenLabs audio — sequentially to avoid rate limiting.
-      //    The player unlocks as soon as segment 0 is ready so the user can
-      //    start listening while the remaining segments generate in the background.
+      // 2. Generate ALL ElevenLabs audio in batches of 3 concurrent requests,
+      //    then reveal the player once 100% is done. This prevents the null-skip
+      //    cascade that happens when the player races ahead of generation.
       setGenPhase("generating");
       setGenProgress(0);
 
-      const urls: (string | null)[] = [];
+      const BATCH_SIZE = 3;
+      const urls: (string | null)[] = new Array(segments.length).fill(null);
       let successCount = 0;
-      let playerUnlocked = false;
+      let completedCount = 0;
 
-      for (let i = 0; i < segments.length; i++) {
-        if (cancelled || generationIdRef.current !== genId) return;
-
-        // Two attempts per segment — a 1-second gap between tries absorbs
-        // transient ElevenLabs errors and Vercel cold-start latency.
-        let segUrl: string | null = null;
+      const fetchSegment = async (i: number) => {
         for (let attempt = 0; attempt < 2; attempt++) {
           if (attempt > 0) {
-            await new Promise<void>((r) => setTimeout(r, 1000));
+            await new Promise<void>((r) => setTimeout(r, 1500));
             if (cancelled || generationIdRef.current !== genId) return;
           }
           try {
             const res = await fetch("/api/tts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: segments[i].text, speaker: segments[i].speaker, language: "en" }),
+              body: JSON.stringify({
+                text: segments[i].text,
+                speaker: segments[i].speaker,
+                language: "en",
+              }),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const blob = await res.blob();
-            segUrl = URL.createObjectURL(blob);
+            const segUrl = URL.createObjectURL(blob);
             blobUrlsRef.current.push(segUrl);
+            urls[i] = segUrl;
             successCount++;
-            break; // success — stop retrying
+            return;
           } catch (err) {
             if (attempt === 0) console.warn(`[BodhaWave] TTS seg ${i} failed, retrying…`, err);
           }
         }
-        urls.push(segUrl);
+        // Both attempts failed — slot stays null
+      };
 
-        // Update ref immediately so playAudioSegment can access the new URL
-        // without waiting for a React re-render cycle.
-        audioUrlsRef.current = [...urls];
-        setAudioUrls([...urls]);
-        setGenProgress(Math.round(((i + 1) / segments.length) * 100));
-
-        // Unlock the player as soon as we have the first successful segment
-        if (!playerUnlocked && successCount >= 1) {
-          playerUnlocked = true;
-          setIsFallback(false);
-          isFallbackRef.current = false;
-          setGenPhase("ready");
-        }
+      // Process in batches so ≤3 requests are in-flight at a time
+      for (let b = 0; b < segments.length; b += BATCH_SIZE) {
+        if (cancelled || generationIdRef.current !== genId) return;
+        const batch = segments
+          .slice(b, b + BATCH_SIZE)
+          .map((_, bi) => fetchSegment(b + bi));
+        await Promise.all(batch);
+        completedCount = Math.min(b + BATCH_SIZE, segments.length);
+        setGenProgress(Math.round((completedCount / segments.length) * 100));
       }
 
       if (cancelled || generationIdRef.current !== genId) return;
 
+      // All audio ready — commit to state and unlock the player
+      audioUrlsRef.current = [...urls];
+      setAudioUrls([...urls]);
+
       if (successCount === 0) {
-        // All ElevenLabs calls failed — silent fallback to browser TTS
-        console.warn(
-          "[BodhaWave] ElevenLabs TTS failed for all segments, silently using browser TTS."
-        );
+        // Every ElevenLabs call failed — fall back to browser TTS silently
+        console.warn("[BodhaWave] All ElevenLabs TTS failed — using browser TTS.");
         setIsFallback(true);
         isFallbackRef.current = true;
-        setGenPhase("ready");
+      } else {
+        setIsFallback(false);
+        isFallbackRef.current = false;
       }
+      setGenPhase("ready");
     };
 
     run();
