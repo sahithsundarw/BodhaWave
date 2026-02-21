@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Raise the limit so large PDF base64 payloads don't get rejected
+  // Raise the body-size limit for Server Actions (if any are added later)
   experimental: {
     serverActions: {
-      bodySizeLimit: "30mb",
+      bodySizeLimit: "15mb",
     },
   },
 };

@@ -3,7 +3,7 @@ import { analyzeWithTwoPDFs, parseJSONResponse } from "@/lib/anthropic";
 import { buildBattlePrompt } from "@/lib/prompts";
 import type { PaperBattleResult } from "@/types";
 
-export const maxDuration = 180;
+export const maxDuration = 60; // Vercel Hobby max; Pro plan supports up to 300s
 
 export async function POST(req: NextRequest) {
   try {

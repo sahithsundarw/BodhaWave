@@ -3,7 +3,7 @@ import { analyzeWithPDF, parseJSONResponse } from "@/lib/anthropic";
 import { buildAnalysisPrompt } from "@/lib/prompts";
 import type { PaperAnalysis } from "@/types";
 
-export const maxDuration = 120; // Allow up to 2 minutes for complex PDFs
+export const maxDuration = 60; // Vercel Hobby max; Pro plan supports up to 300s
 
 export async function POST(req: NextRequest) {
   try {

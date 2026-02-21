@@ -222,7 +222,9 @@ export default function PodcastPlayer({
   const blobUrlsRef = useRef<string[]>([]); // tracked for cleanup
   const generationIdRef = useRef(0); // incremented per generation run to cancel stale ones
   const progressBarRef = useRef<HTMLDivElement>(null);
-  const seekFractionRef = useRef(0); // intra-segment fraction to seek after next segment loads
+  const seekFractionRef = useRef(0);   // intra-segment fraction to seek after next segment loads
+  const isPausedRef = useRef(false);   // true when user explicitly hit Pause (not Stop)
+  const pausedPositionRef = useRef(0); // audio.currentTime saved at the moment of pause
 
   // ---------- Browser TTS voices ----------
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -357,6 +359,10 @@ export default function PodcastPlayer({
         return;
       }
 
+      // Starting a fresh segment — clear any saved pause position
+      isPausedRef.current = false;
+      pausedPositionRef.current = 0;
+
       setCurrentSegment(index);
       currentSegmentRef.current = index;
       setTimeout(() => {
@@ -400,6 +406,8 @@ export default function PodcastPlayer({
 
   const stopAll = useCallback(() => {
     isStoppedRef.current = true;
+    isPausedRef.current = false;
+    pausedPositionRef.current = 0;
     speechSynthesis.cancel();
     if (audioRef.current) {
       audioRef.current.pause();
@@ -538,17 +546,21 @@ export default function PodcastPlayer({
     isStoppedRef.current = false;
     if (!isFallbackRef.current) {
       const audio = audioRef.current;
-      // If audio is already loaded at a position, just resume — don't reload the src
-      // (reloading resets currentTime to 0, which is the pause-then-resume bug)
-      if (audio && audio.src && audio.paused) {
+      if (isPausedRef.current && audio && audio.src) {
+        // User hit Pause — restore the exact saved position then resume.
+        // We set currentTime explicitly because some browsers reset it after pause.
+        isPausedRef.current = false;
+        audio.currentTime = pausedPositionRef.current;
         audio.play().catch(console.error);
         setIsPlaying(true);
       } else {
+        isPausedRef.current = false;
         const idx = currentSegment >= 0 ? currentSegment : 0;
         setIsPlaying(true);
         playAudioSegment(idx);
       }
     } else {
+      isPausedRef.current = false;
       const idx = currentSegment >= 0 ? currentSegment : 0;
       speechSynthesis.cancel();
       setIsPlaying(true);
@@ -559,14 +571,12 @@ export default function PodcastPlayer({
   const handlePause = useCallback(() => {
     if (!isFallbackRef.current) {
       const audio = audioRef.current;
-      if (!audio) return;
-      if (audio.paused) {
-        audio.play();
-        setIsPlaying(true);
-      } else {
-        audio.pause();
-        setIsPlaying(false);
-      }
+      if (!audio || audio.paused) return; // already paused — nothing to do
+      // Save exact position before pausing so handlePlay can restore it precisely
+      isPausedRef.current = true;
+      pausedPositionRef.current = audio.currentTime;
+      audio.pause();
+      setIsPlaying(false);
     } else {
       if (speechSynthesis.speaking && !speechSynthesis.paused) {
         speechSynthesis.pause();
@@ -579,6 +589,8 @@ export default function PodcastPlayer({
   }, []);
 
   const handleStop = useCallback(() => {
+    isPausedRef.current = false;
+    pausedPositionRef.current = 0;
     isStoppedRef.current = true;
     if (!isFallbackRef.current && audioRef.current) {
       audioRef.current.pause();

@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "src/app/api/analyze/route.ts":   { "maxDuration": 60 },
+    "src/app/api/podcast/route.ts":   { "maxDuration": 60 },
+    "src/app/api/impact/route.ts":    { "maxDuration": 60 },
+    "src/app/api/battle/route.ts":    { "maxDuration": 60 },
+    "src/app/api/tts/route.ts":       { "maxDuration": 60 },
+    "src/app/api/translate/route.ts": { "maxDuration": 60 },
+    "src/app/api/qa/route.ts":        { "maxDuration": 60 }
+  }
+}

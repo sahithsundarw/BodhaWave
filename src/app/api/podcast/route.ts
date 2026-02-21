@@ -3,7 +3,7 @@ import { analyzeWithPDF, parseJSONResponse } from "@/lib/anthropic";
 import { buildPodcastPrompt } from "@/lib/prompts";
 import type { Perspective, PodcastScript } from "@/types";
 
-export const maxDuration = 120;
+export const maxDuration = 60; // Vercel Hobby max; Pro plan supports up to 300s
 
 export async function POST(req: NextRequest) {
   try {
