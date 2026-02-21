@@ -341,8 +341,7 @@ export default function PodcastPlayer({
 
   const playAudioSegment = useCallback(
     (index: number) => {
-      const urls = audioUrlsRef.current;
-      if (index >= urls.length || isStoppedRef.current) {
+      if (isStoppedRef.current) {
         setIsPlaying(false);
         setCurrentSegment(-1);
         currentSegmentRef.current = -1;
@@ -352,9 +351,32 @@ export default function PodcastPlayer({
         }
         return;
       }
+
+      const totalExpected = activeSegmentsRef.current.length;
+
+      // Past the last segment — natural end of playback
+      if (index >= totalExpected) {
+        setIsPlaying(false);
+        setCurrentSegment(-1);
+        currentSegmentRef.current = -1;
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        }
+        return;
+      }
+
+      const urls = audioUrlsRef.current;
+
+      // Segment not generated yet — wait 400ms and retry (still generating)
+      if (index >= urls.length) {
+        setTimeout(() => playAudioSegment(index), 400);
+        return;
+      }
+
       const url = urls[index];
       if (!url) {
-        // Skip segments that failed to generate
+        // This specific segment failed — skip it
         playAudioSegment(index + 1);
         return;
       }
@@ -475,45 +497,51 @@ export default function PodcastPlayer({
 
       if (cancelled || generationIdRef.current !== genId) return;
 
-      // 2. Generate ElevenLabs audio — all segments in parallel
+      // 2. Generate ElevenLabs audio — sequentially to avoid rate limiting.
+      //    The player unlocks as soon as segment 0 is ready so the user can
+      //    start listening while the remaining segments generate in the background.
       setGenPhase("generating");
       setGenProgress(0);
 
-      const urls: (string | null)[] = new Array(segments.length).fill(null);
-      let completedCount = 0;
+      const urls: (string | null)[] = [];
       let successCount = 0;
+      let playerUnlocked = false;
 
-      // Hinglish ("hi") and Tenglish ("te") are Roman-script, so always send
-      // language "en" to ElevenLabs — avoids multilingual accent mode entirely.
-      const allResults = await Promise.all(
-        segments.map(async (seg, i) => {
-          try {
-            const res = await fetch("/api/tts", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: seg.text, speaker: seg.speaker, language: "en" }),
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            blobUrlsRef.current.push(url);
-            completedCount++;
-            setGenProgress(Math.round((completedCount / segments.length) * 100));
-            return { index: i, url };
-          } catch {
-            completedCount++;
-            setGenProgress(Math.round((completedCount / segments.length) * 100));
-            return { index: i, url: null };
-          }
-        })
-      );
+      for (let i = 0; i < segments.length; i++) {
+        if (cancelled || generationIdRef.current !== genId) return;
+
+        try {
+          const res = await fetch("/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: segments[i].text, speaker: segments[i].speaker, language: "en" }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          blobUrlsRef.current.push(url);
+          urls.push(url);
+          successCount++;
+        } catch {
+          urls.push(null);
+        }
+
+        // Update ref immediately so playAudioSegment can access the new URL
+        // without waiting for a React re-render cycle.
+        audioUrlsRef.current = [...urls];
+        setAudioUrls([...urls]);
+        setGenProgress(Math.round(((i + 1) / segments.length) * 100));
+
+        // Unlock the player as soon as we have the first successful segment
+        if (!playerUnlocked && successCount >= 1) {
+          playerUnlocked = true;
+          setIsFallback(false);
+          isFallbackRef.current = false;
+          setGenPhase("ready");
+        }
+      }
 
       if (cancelled || generationIdRef.current !== genId) return;
-
-      allResults.forEach(({ index, url }) => {
-        urls[index] = url;
-        if (url) successCount++;
-      });
 
       if (successCount === 0) {
         // All ElevenLabs calls failed — silent fallback to browser TTS
@@ -522,13 +550,8 @@ export default function PodcastPlayer({
         );
         setIsFallback(true);
         isFallbackRef.current = true;
-      } else {
-        setAudioUrls(urls);
-        setIsFallback(false);
-        isFallbackRef.current = false;
+        setGenPhase("ready");
       }
-
-      setGenPhase("ready");
     };
 
     run();
