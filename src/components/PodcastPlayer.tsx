@@ -510,21 +510,31 @@ export default function PodcastPlayer({
       for (let i = 0; i < segments.length; i++) {
         if (cancelled || generationIdRef.current !== genId) return;
 
-        try {
-          const res = await fetch("/api/tts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: segments[i].text, speaker: segments[i].speaker, language: "en" }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          blobUrlsRef.current.push(url);
-          urls.push(url);
-          successCount++;
-        } catch {
-          urls.push(null);
+        // Two attempts per segment — a 1-second gap between tries absorbs
+        // transient ElevenLabs errors and Vercel cold-start latency.
+        let segUrl: string | null = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (attempt > 0) {
+            await new Promise<void>((r) => setTimeout(r, 1000));
+            if (cancelled || generationIdRef.current !== genId) return;
+          }
+          try {
+            const res = await fetch("/api/tts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: segments[i].text, speaker: segments[i].speaker, language: "en" }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            segUrl = URL.createObjectURL(blob);
+            blobUrlsRef.current.push(segUrl);
+            successCount++;
+            break; // success — stop retrying
+          } catch (err) {
+            if (attempt === 0) console.warn(`[BodhaWave] TTS seg ${i} failed, retrying…`, err);
+          }
         }
+        urls.push(segUrl);
 
         // Update ref immediately so playAudioSegment can access the new URL
         // without waiting for a React re-render cycle.
@@ -707,23 +717,56 @@ export default function PodcastPlayer({
 
   const handleSegmentClick = useCallback(
     (i: number) => {
+      // Always start playing from the clicked segment (whether or not audio
+      // is currently playing) so the user can jump to any segment at any time.
       if (!isFallbackRef.current) {
         isStoppedRef.current = false;
-        if (isPlaying) playAudioSegment(i);
-        else {
-          setCurrentSegment(i);
-          currentSegmentRef.current = i;
-        }
+        isPausedRef.current = false;
+        pausedPositionRef.current = 0;
+        setIsPlaying(true);
+        playAudioSegment(i);
       } else {
         speechSynthesis.cancel();
-        if (isPlaying) {
-          isStoppedRef.current = false;
-          speakSegment(i);
-        } else setCurrentSegment(i);
+        isStoppedRef.current = false;
+        setIsPlaying(true);
+        speakSegment(i);
       }
     },
-    [isPlaying, playAudioSegment, speakSegment]
+    [playAudioSegment, speakSegment]
   );
+
+  const handlePrevSegment = useCallback(() => {
+    const prev = Math.max(0, (currentSegment > 0 ? currentSegment : 1) - 1);
+    if (!isFallbackRef.current) {
+      isStoppedRef.current = false;
+      isPausedRef.current = false;
+      pausedPositionRef.current = 0;
+      setIsPlaying(true);
+      playAudioSegment(prev);
+    } else {
+      speechSynthesis.cancel();
+      isStoppedRef.current = false;
+      setIsPlaying(true);
+      speakSegment(prev);
+    }
+  }, [currentSegment, playAudioSegment, speakSegment]);
+
+  const handleNextSegment = useCallback(() => {
+    const total = activeSegmentsRef.current.length;
+    const next = Math.min(total - 1, (currentSegment >= 0 ? currentSegment : 0) + 1);
+    if (!isFallbackRef.current) {
+      isStoppedRef.current = false;
+      isPausedRef.current = false;
+      pausedPositionRef.current = 0;
+      setIsPlaying(true);
+      playAudioSegment(next);
+    } else {
+      speechSynthesis.cancel();
+      isStoppedRef.current = false;
+      setIsPlaying(true);
+      speakSegment(next);
+    }
+  }, [currentSegment, playAudioSegment, speakSegment]);
 
   // Switch language — useEffect handles re-generation automatically
   const switchLanguage = useCallback((lang: Language) => {
@@ -1007,7 +1050,7 @@ export default function PodcastPlayer({
 
           {/* Previous segment */}
           <button
-            onClick={handleSkipBack}
+            onClick={handlePrevSegment}
             className="p-2 rounded-lg hover:bg-white/5 transition-all text-gray-400 hover:text-white"
             title="Previous segment"
             aria-label="Previous segment"
@@ -1042,7 +1085,7 @@ export default function PodcastPlayer({
 
           {/* Next segment */}
           <button
-            onClick={handleSkipForward}
+            onClick={handleNextSegment}
             className="p-2 rounded-lg hover:bg-white/5 transition-all text-gray-400 hover:text-white"
             title="Next segment"
             aria-label="Next segment"
