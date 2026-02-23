@@ -21,18 +21,26 @@ interface PaperBattleProps {
   battleResult: PaperBattleResult | null;
 }
 
+const BATTLE_MAX_BYTES = 1.5 * 1024 * 1024; // 1.5 MB per paper in battle mode
+
 function MiniUpload({
   label,
   pdfData,
   onUpload,
+  onError,
 }: {
   label: string;
   pdfData: PdfData | null;
   onUpload: (data: PdfData) => void;
+  onError: (msg: string) => void;
 }) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => {
       if (files[0]) {
+        if (files[0].size > BATTLE_MAX_BYTES) {
+          onError("Each paper must be under 1.5 MB for battle mode.");
+          return;
+        }
         const reader = new FileReader();
         reader.onload = () => {
           const dataUrl = reader.result as string;
@@ -43,6 +51,7 @@ function MiniUpload({
       }
     },
     accept: { "application/pdf": [".pdf"] },
+    maxSize: BATTLE_MAX_BYTES,
     multiple: false,
   });
 
@@ -77,7 +86,7 @@ function MiniUpload({
       <input {...getInputProps()} />
       <Upload className="w-6 h-6 text-gray-500 mx-auto mb-2" />
       <div className="text-xs text-gray-500 font-medium mb-0.5">{label}</div>
-      <div className="text-xs text-gray-600">Drop PDF here</div>
+      <div className="text-xs text-gray-600">Drop PDF here · max 1.5 MB</div>
     </div>
   );
 }
@@ -105,8 +114,14 @@ export default function PaperBattle({
           pdf2Base64: pdf2.base64,
         }),
       });
+      if (!res.ok) {
+        const msg =
+          res.status === 413
+            ? "Combined PDFs too large — keep each paper under 1.5 MB."
+            : ((await res.json().catch(() => ({ error: "Battle failed" }))).error || "Battle failed");
+        throw new Error(msg);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Battle failed");
       onBattleComplete(data.battle);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Battle analysis failed");
@@ -159,6 +174,7 @@ export default function PaperBattle({
                 label="Upload Challenger"
                 pdfData={pdf2}
                 onUpload={setPdf2}
+                onError={setError}
               />
             </div>
           </div>

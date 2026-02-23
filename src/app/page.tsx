@@ -103,7 +103,16 @@ export default function HomePage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pdfBase64: pdf1.base64 }),
-          }).then((res) => res.json()),
+          }).then(async (res) => {
+            if (!res.ok) {
+              const msg =
+                res.status === 413
+                  ? "PDF too large — please use a file under 3 MB."
+                  : `Server error ${res.status}`;
+              throw new Error(msg);
+            }
+            return res.json();
+          }),
           fetch("/api/podcast", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -111,7 +120,16 @@ export default function HomePage() {
               pdfBase64: pdf1.base64,
               perspective: selectedPerspective,
             }),
-          }).then((res) => res.json()),
+          }).then(async (res) => {
+            if (!res.ok) {
+              const msg =
+                res.status === 413
+                  ? "PDF too large — please use a file under 3 MB."
+                  : `Server error ${res.status}`;
+              throw new Error(msg);
+            }
+            return res.json();
+          }),
         ]);
 
         const analysisData =

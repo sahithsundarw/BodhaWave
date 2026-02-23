@@ -44,8 +44,8 @@ export default function PaperUpload({ onUpload, onBattleMode }: PaperUploadProps
         setError("Please upload a PDF file");
         return;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setError("File must be smaller than 10MB");
+      if (file.size > 3 * 1024 * 1024) {
+        setError("File must be smaller than 3 MB");
         return;
       }
 
@@ -172,14 +172,14 @@ export default function PaperUpload({ onUpload, onBattleMode }: PaperUploadProps
                   <span className="text-violet-400 underline underline-offset-2">
                     click to browse
                   </span>{" "}
-                  · PDF up to 10MB
+                  · PDF up to 3 MB
                 </p>
               </div>
 
               <div className="flex items-center gap-3 text-xs text-gray-500 mt-2">
                 <span className="tag-pill">PDF</span>
                 <span className="tag-pill">Any research domain</span>
-                <span className="tag-pill">Up to 10MB</span>
+                <span className="tag-pill">Up to 3 MB</span>
               </div>
             </div>
           )}
